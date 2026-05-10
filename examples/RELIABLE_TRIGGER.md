@@ -52,7 +52,7 @@ Then rotate the PAT if it ever leaks.
 
 ## 5. Feed urgency + Alexa (optional env / GitHub Secrets)
 
-`examples/push_ntfy_status.py` compares **last bottle** vs **last nursing** and uses the **newer** timestamp as “last feed.” **`FEED_ALERT_AFTER_MINUTES`** (default `120`) applies to **both** last feed age and last diaper age: you get 🟢 only when **both** are inside that window; otherwise ntfy uses **Priority: urgent** and title **`🔴 Baby needs attention`** (emoji + suffix from **`FEED_ALERT_TITLE`**). When OK, title is **`🟢`** plus **`NTFY_TITLE`** (default `Huckleberry`).
+`examples/push_ntfy_status.py` compares **last bottle** vs **last nursing** and uses the **newer** timestamp as “last feed.” **`FEED_ALERT_AFTER_MINUTES`** (default `120`) applies to **both** last feed age and last diaper age: you get 🟢 only when **both** are inside that window; otherwise title is **`🔴 Baby needs attention`** (emoji + suffix from **`FEED_ALERT_TITLE`**). When OK, title is **`🟢`** plus **`NTFY_TITLE`** (default `Huckleberry`). **Priority: urgent** is sent on **every** run so routine updates stay max priority; the **`warning`** tag is still only added when status is red.
 
 For **Echo** announcements when status is red, enable [Voice Monkey](https://voicemonkey.io/docs), then add repository secrets **`VOICE_MONKEY_TOKEN`** and **`VOICE_MONKEY_DEVICE`**. The script calls `https://api-v2.voicemonkey.io/announcement` on each run while red — match your external cron frequency to how often you want Alexa to speak.
 

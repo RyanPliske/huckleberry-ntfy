@@ -18,11 +18,12 @@ Environment variables:
   NTFY_TITLE — optional title **suffix** after the status emoji when all OK (default: ``Huckleberry``).
       The posted title is always ``🟢`` or ``🔴`` plus a space plus this text (or the alert title when red).
 
-  NOTIFY_CHILD_NAME — optional first name for the message, e.g. ``Nancy``. Shows lines like
-      ``Nancy · last ate 2h ago (Formula)`` instead of generic ``Last feed``.
+  NOTIFY_CHILD_NAME — optional first name for the message, e.g. ``Nancy``. Feed line looks like
+      ``Nancy · 🍼 2:07p · 2h ago`` (local clock from ``HUCKLEBERRY_TIMEZONE`` + relative; 🤱 = nursing).
 
   FEED_ALERT_AFTER_MINUTES — one window (default: 120) for **both** last feed and last diaper:
-      title shows ``🟢`` only if **both** are within the window; otherwise ``🔴`` and urgent ntfy.
+      title shows ``🟢`` only if **both** are within the window; otherwise ``🔴``.
+      ntfy **Priority** is always ``urgent`` (max) so every run surfaces the same (last fed, etc.).
   FEED_ALERT_TITLE — title **suffix** after ``🔴`` when attention needed (default: ``Baby needs attention``).
 
   Voice Monkey → Alexa (optional): enable the Voice Monkey skill, create a device in their console,
@@ -51,6 +52,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import aiohttp
 
@@ -87,15 +89,41 @@ def _last_feed_info(feed_prefs: object) -> tuple[float | None, str]:
     return tn, "nursing"
 
 
-def _format_last_feed_line(child_name: str, ts: float | None, kind: str) -> str:
-    """Single summary line: when they last ate (bottle or nursing — whichever is newer)."""
+def _clock_ampm(ts: float, tz_name: str) -> str:
+    """Local time like ``2:07p`` (12h, no space before am/pm)."""
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(ZoneInfo(tz_name))
+    h12 = dt.hour % 12
+    if h12 == 0:
+        h12 = 12
+    return f"{h12}:{dt.minute:02d}{'a' if dt.hour < 12 else 'p'}"
+
+
+def _feed_kind_emoji(kind: str) -> str:
+    return "🤱" if kind == "nursing" else "🍼"
+
+
+def _diaper_mode_emoji(mode: str | None) -> str:
+    if mode == "pee":
+        return "💧"
+    if mode == "poo":
+        return "💩"
+    if mode == "both":
+        return "💧💩"
+    if mode == "dry":
+        return "✅"
+    return "🧷"
+
+
+def _format_last_feed_line(child_name: str, ts: float | None, kind: str, tz_name: str) -> str:
+    """Single summary line: clock + relative; bottle vs nursing as emoji only."""
     if ts is None:
-        return f"{child_name} · no feed logged" if child_name else "Last feed: —"
+        return f"{child_name} · no feed" if child_name else "No feed · —"
+    em = _feed_kind_emoji(kind)
+    clock = _clock_ampm(ts, tz_name)
     ago_s = _ago(ts)
-    display_kind = "Nursing" if kind == "nursing" else kind
     if child_name:
-        return f"{child_name} · last ate {ago_s} ({display_kind})"
-    return f"Last feed ({display_kind}): {ago_s}"
+        return f"{child_name} · {em} {clock} · {ago_s}"
+    return f"{em} {clock} · {ago_s}"
 
 
 def _emoji(ok: bool) -> str:
@@ -164,7 +192,7 @@ async def run(child_index: int) -> None:
         overall_ok = feed_ok and diaper_ok
         needs_attention = not overall_ok
 
-        feed_text = _format_last_feed_line(child_name, last_feed_ts, last_feed_kind)
+        feed_text = _format_last_feed_line(child_name, last_feed_ts, last_feed_kind, tz_name)
         lines: list[str] = [feed_text]
 
         if feed and feed.timer and feed.timer.active:
@@ -172,10 +200,11 @@ async def run(child_index: int) -> None:
 
         if diaper and diaper.prefs and diaper.prefs.lastDiaper and diaper.prefs.lastDiaper.start is not None:
             ld = diaper.prefs.lastDiaper
-            mode = ld.mode or "?"
-            lines.append(f"Diaper ({mode}): {_ago(ld.start)}")
+            d_ts = float(ld.start)
+            dem = _diaper_mode_emoji(ld.mode)
+            lines.append(f"{dem} {_clock_ampm(d_ts, tz_name)} · {_ago(d_ts)}")
         else:
-            lines.append("Diaper: —")
+            lines.append("🧷 —")
 
         body = "\n".join(lines)
 
@@ -189,10 +218,9 @@ async def run(child_index: int) -> None:
         headers: dict[str, str] = {
             "Title": use_title,
             "Tags": "baby,bottle,warning" if needs_attention else "baby,bottle",
+            # https://docs.ntfy.sh/publish/#priority — always max so routine “last fed” pings aren’t downgraded.
+            "Priority": "urgent",
         }
-        if needs_attention:
-            # https://docs.ntfy.sh/publish/#priority
-            headers["Priority"] = "urgent"
 
         async with session.post(ntfy_url, data=body.encode("utf-8"), headers=headers) as resp:
             if resp.status < 200 or resp.status >= 300:
