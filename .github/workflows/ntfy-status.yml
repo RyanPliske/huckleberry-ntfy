@@ -18,6 +18,9 @@ on:
     # Scheduled workflows only run from the default branch (usually main).
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  # Sanity check: confirms Actions runs on push to main (remove once schedule is verified).
+  push:
+    branches: [main]
 
 permissions:
   contents: read
