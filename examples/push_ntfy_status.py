@@ -26,7 +26,8 @@ Environment variables:
       **🔴** when there is no last bottle/nursing, **or** minutes since the newer of those is **≥** the
       active window (day ``150`` / night ``180`` by default). **🟢** when a last feed exists and age is **<** that window.
       Body feed line shows time until the next feed window (e.g. ``15m left``) or overdue (e.g. ``12m overdue``).
-  FEED_ALERT_TITLE — title **suffix** after ``🔴`` when feed is overdue (default: ``Baby needs attention``).
+  FEED_ALERT_TITLE — optional override when feed is overdue (default: ``Nancy needs attention``, from
+      ``CHILD_NAME`` in this file). If set, title is ``Nancy ·`` + your short text for iOS banners.
 
   Voice Monkey → Alexa (optional): enable the skill and link a speaker in their app, then set:
   VOICE_MONKEY_TOKEN — API token (API Playground / API Tokens).
@@ -314,12 +315,14 @@ async def run(child_index: int) -> None:
         body = "\n".join(lines)
 
         ntfy_url = f"{ntfy_server}/{topic}"
-        title_suffix = (
-            (os.getenv("FEED_ALERT_TITLE") or "Baby needs attention")
-            if needs_attention
-            else title
-        )
-        title_suffix = _title_suffix_with_child(title_suffix, CHILD_NAME)
+        if needs_attention:
+            custom = (os.getenv("FEED_ALERT_TITLE") or "").strip()
+            if custom:
+                title_suffix = f"{CHILD_NAME} · {custom}" if CHILD_NAME else custom
+            else:
+                title_suffix = f"{CHILD_NAME} needs attention" if CHILD_NAME else "Feed needed"
+        else:
+            title_suffix = _title_suffix_with_child(title, CHILD_NAME)
         use_title = f"{_emoji(feed_ok)} {title_suffix}"
         headers: dict[str, str] = {
             "Title": use_title,
