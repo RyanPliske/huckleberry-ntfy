@@ -24,9 +24,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Woyken/py-huckleberry-api"
-Repository = "https://github.com/Woyken/py-huckleberry-api"
-Issues = "https://github.com/Woyken/py-huckleberry-api/issues"
+Homepage = "https://github.com/RyanPliske/huckleberry-ntfy"
+Repository = "https://github.com/RyanPliske/huckleberry-ntfy"
+Issues = "https://github.com/RyanPliske/huckleberry-ntfy/issues"
 
 [dependency-groups]
 dev = [

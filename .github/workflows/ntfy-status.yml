@@ -1,0 +1,56 @@
+# Push Huckleberry feed/diaper summary to your phone via ntfy.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   HUCKLEBERRY_EMAIL
+#   HUCKLEBERRY_PASSWORD
+#   HUCKLEBERRY_TIMEZONE   e.g. America/Denver
+#   NTFY_TOPIC             secret topic you subscribed to in the ntfy app
+#
+# Optional secrets:
+#   NTFY_TITLE             notification title (default: Huckleberry)
+#   NTFY_SERVER            default https://ntfy.sh
+
+name: NTFY status
+
+on:
+  schedule:
+    # Top of every hour (UTC). Adjust to your timezone needs.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ntfy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install project
+        run: uv sync --no-dev
+
+      - name: Push status to ntfy
+        env:
+          HUCKLEBERRY_EMAIL: ${{ secrets.HUCKLEBERRY_EMAIL }}
+          HUCKLEBERRY_PASSWORD: ${{ secrets.HUCKLEBERRY_PASSWORD }}
+          HUCKLEBERRY_TIMEZONE: ${{ secrets.HUCKLEBERRY_TIMEZONE }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TITLE: ${{ secrets.NTFY_TITLE }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+        run: uv run python examples/push_ntfy_status.py

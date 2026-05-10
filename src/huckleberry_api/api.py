@@ -2005,6 +2005,49 @@ class HuckleberryAPI:
             _LOGGER.error("Failed to get growth data: %s", err)
             return None
 
+    async def get_feed_summary(self, child_uid: str) -> FirebaseFeedDocumentData | None:
+        """
+        Fetch feed/{child_uid} (prefs and timer).
+
+        Use ``prefs.lastBottle`` / ``prefs.lastNursing`` for latest bottle vs breast summaries;
+        ``timer`` reflects an in-progress feeding session when active.
+        """
+        client = await self._get_firestore_client()
+        feed_ref = client.collection("feed").document(child_uid)
+
+        try:
+            doc = await feed_ref.get()
+            if not doc.exists:
+                return None
+
+            raw = doc.to_dict()
+            if not raw:
+                return None
+
+            return FirebaseFeedDocumentData.model_validate(raw)
+        except (GoogleAPICallError, ValidationError, RuntimeError, TypeError, ValueError) as err:
+            _LOGGER.error("Failed to get feed summary for %s: %s", child_uid, err)
+            return None
+
+    async def get_diaper_summary(self, child_uid: str) -> FirebaseDiaperDocumentData | None:
+        """Fetch diaper/{child_uid} prefs (e.g. ``prefs.lastDiaper`` for the latest change)."""
+        client = await self._get_firestore_client()
+        diaper_ref = client.collection("diaper").document(child_uid)
+
+        try:
+            doc = await diaper_ref.get()
+            if not doc.exists:
+                return None
+
+            raw = doc.to_dict()
+            if not raw:
+                return None
+
+            return FirebaseDiaperDocumentData.model_validate(raw)
+        except (GoogleAPICallError, ValidationError, RuntimeError, TypeError, ValueError) as err:
+            _LOGGER.error("Failed to get diaper summary for %s: %s", child_uid, err)
+            return None
+
     async def list_sleep_intervals(
         self,
         child_uid: str,
