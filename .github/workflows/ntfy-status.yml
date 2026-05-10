@@ -1,9 +1,15 @@
 # Push Huckleberry feed/diaper summary to your phone via ntfy.
 #
+# Schedule rules (see GitHub docs: events → schedule):
+#   - Workflow file MUST exist on the default branch or schedules do not run.
+#   - Scheduled workflows run only on the default branch.
+#   - Forks: schedules are often disabled until you enable Actions for the fork.
+#   - Public repos: schedules auto-disable after 60 days without repo activity (re-enable in Actions UI).
+#
 # Required repository secrets (Settings → Secrets and variables → Actions):
 #   HUCKLEBERRY_EMAIL
 #   HUCKLEBERRY_PASSWORD
-#   HUCKLEBERRY_TIMEZONE   e.g. America/Denver
+#   HUCKLEBERRY_TIMEZONE   e.g. America/Chicago
 #   NTFY_TOPIC             secret topic you subscribed to in the ntfy app
 #
 # Optional secrets:
@@ -14,13 +20,10 @@ name: NTFY status
 
 on:
   schedule:
-    # Every 5 minutes (UTC). GitHub minimum frequency is 5 minutes.
-    # Scheduled workflows only run from the default branch (usually main).
+    # Every 5 minutes in America/Chicago (GitHub minimum interval is 5 minutes).
     - cron: "*/5 * * * *"
+      timezone: "America/Chicago"
   workflow_dispatch:
-  # Sanity check: confirms Actions runs on push to main (remove once schedule is verified).
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -33,6 +36,11 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
+      - name: Workflow trigger
+        run: |
+          echo "github.event_name=${{ github.event_name }}"
+          echo "If this was scheduled, event_name should be: schedule"
+
       - name: Checkout
         uses: actions/checkout@v4
 
