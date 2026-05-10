@@ -67,8 +67,9 @@ async def run(child_index: int) -> None:
     tz_name = _env_required("HUCKLEBERRY_TIMEZONE")
     topic = _env_required("NTFY_TOPIC")
 
-    ntfy_server = os.getenv("NTFY_SERVER", "https://ntfy.sh").rstrip("/")
-    title = os.getenv("NTFY_TITLE", "Huckleberry")
+    # GitHub Actions sets missing secrets to ""; getenv(..., default) still returns "" if the var exists.
+    ntfy_server = (os.getenv("NTFY_SERVER") or "https://ntfy.sh").rstrip("/")
+    title = os.getenv("NTFY_TITLE") or "Huckleberry"
 
     async with aiohttp.ClientSession() as session:
         api = HuckleberryAPI(email=email, password=password, timezone=tz_name, websession=session)
