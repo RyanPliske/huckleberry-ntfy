@@ -16,25 +16,25 @@ Environment variables:
   NTFY_TOPIC — required; the topic you subscribed to in the app.
   NTFY_SERVER — optional; default ``https://ntfy.sh`` (no trailing slash).
   NTFY_TITLE — optional title **suffix** after the status emoji when all OK (default: ``Huckleberry``).
-      The posted title is always ``🟢`` or ``🔴`` plus a space plus this text (or the alert title when red).
+      Title includes ``CHILD_NAME`` (e.g. ``🟢 Nancy · Huckleberry``); body lines omit the name to avoid duplicate.
 
-  NOTIFY_CHILD_NAME — optional first name for the message, e.g. ``Nancy``. Feed line looks like
-      ``Nancy · 🍼 2:07p · 2h ago`` (local clock from ``HUCKLEBERRY_TIMEZONE`` + relative; 🤱 = nursing).
-
-  FEED_ALERT_AFTER_MINUTES — one window (default: 120) for **both** last feed and last diaper:
-      title shows ``🟢`` only if **both** are within the window; otherwise ``🔴``.
-      ntfy **Priority** is always ``urgent`` (max) so every run surfaces the same (last fed, etc.).
-  FEED_ALERT_TITLE — title **suffix** after ``🔴`` when attention needed (default: ``Baby needs attention``).
+  FEED_ALERT_AFTER_MINUTES — day spacing for **feeds** in minutes (default: ``150`` = 2.5h).
+  FEED_ALERT_NIGHT_AFTER_MINUTES — night spacing (default: ``180`` = 3h).
+  FEED_ALERT_NIGHT_START_HOUR / FEED_ALERT_NIGHT_END_HOUR — local ``HUCKLEBERRY_TIMEZONE`` hours [0–23].
+      Night is ``start`` through just before ``end``; default **22 → 7** (10pm–before-7am).
+      Title ``🟢``/``🔴`` and urgent extras follow **last feed only**; diaper line is informational.
+      Body feed line shows time until the next feed window (e.g. ``15m left``) or overdue (e.g. ``12m overdue``).
+  FEED_ALERT_TITLE — title **suffix** after ``🔴`` when feed is overdue (default: ``Baby needs attention``).
 
   Voice Monkey → Alexa (optional): enable the Voice Monkey skill, create a device in their console,
       then set:
   VOICE_MONKEY_TOKEN — API token from Voice Monkey console.
   VOICE_MONKEY_DEVICE — device id for the Echo you want to speak.
-      When status is 🔴 (feed or diaper outside the window), the script POSTs an announcement
+      When feed is overdue (🔴), the script POSTs an announcement
       (same cadence as this script — use a less frequent external cron if you only want occasional Alexa nags).
       Failures are logged to stderr only; the process still exits 0 if ntfy succeeded.
 
-  FEED_ALERT_WEBHOOK_URL — optional generic GET URL when status is 🔴 (IFTTT, etc.); failures never fail the run.
+  FEED_ALERT_WEBHOOK_URL — optional generic GET URL when feed is overdue (IFTTT, etc.); failures never fail the run.
 
 Usage:
   uv run python examples/push_ntfy_status.py
@@ -57,6 +57,9 @@ from zoneinfo import ZoneInfo
 import aiohttp
 
 from huckleberry_api import HuckleberryAPI
+
+# First name in ntfy title + feed line (edit if needed).
+CHILD_NAME = "Nancy"
 
 
 def _env_required(name: str) -> str:
@@ -114,21 +117,74 @@ def _diaper_mode_emoji(mode: str | None) -> str:
     return "🧷"
 
 
-def _format_last_feed_line(child_name: str, ts: float | None, kind: str, tz_name: str) -> str:
-    """Single summary line: clock + relative; bottle vs nursing as emoji only."""
+def _fmt_minutes_compact(total_minutes: float) -> str:
+    """Human minutes/hours for countdowns (floors sub-hour)."""
+    m = max(0.0, total_minutes)
+    if m < 60:
+        return f"{max(1, int(m))}m"
+    h = int(m // 60)
+    rem = int(m - h * 60)
+    return f"{h}h" if rem == 0 else f"{h}h {rem}m"
+
+
+def _until_next_feed_phrase(last_feed_ts: float, now_ts: float, window_minutes: float) -> str:
+    """``15m left`` before the window ends, or ``12m overdue`` after."""
+    elapsed_min = (now_ts - last_feed_ts) / 60.0
+    remaining_min = window_minutes - elapsed_min
+    if remaining_min > 0:
+        if remaining_min < 1:
+            secs = max(1, int(remaining_min * 60))
+            return f"{secs}s left"
+        return f"{_fmt_minutes_compact(remaining_min)} left"
+    overdue_min = elapsed_min - window_minutes
+    if overdue_min < 1:
+        secs = max(1, int(overdue_min * 60))
+        return f"{secs}s overdue"
+    return f"{_fmt_minutes_compact(overdue_min)} overdue"
+
+
+def _format_last_feed_line(
+    ts: float | None, kind: str, tz_name: str, now_ts: float, window_minutes: float
+) -> str:
+    """Body feed line — clock of last feed + time left / overdue until next feed."""
     if ts is None:
-        return f"{child_name} · no feed" if child_name else "No feed · —"
+        return "No feed · —"
     em = _feed_kind_emoji(kind)
     clock = _clock_ampm(ts, tz_name)
-    ago_s = _ago(ts)
-    if child_name:
-        return f"{child_name} · {em} {clock} · {ago_s}"
-    return f"{em} {clock} · {ago_s}"
+    tail = _until_next_feed_phrase(ts, now_ts, window_minutes)
+    return f"{em} {clock} · {tail}"
 
 
 def _emoji(ok: bool) -> str:
     """🟢 OK / 🔴 needs attention."""
     return "🟢" if ok else "🔴"
+
+
+def _title_suffix_with_child(base: str, child_name: str) -> str:
+    """Prefix child name so the ntfy Title (iOS banner) shows who the alert is for."""
+    return f"{child_name} · {base}" if child_name else base
+
+
+def _is_night_local(local_dt: datetime, start_hour: int, end_hour: int) -> bool:
+    """True when ``local_dt`` falls in the night window (e.g. 22:00–06:59 for start=22, end=7)."""
+    h = local_dt.hour
+    start_hour %= 24
+    end_hour %= 24
+    if start_hour > end_hour:
+        return h >= start_hour or h < end_hour
+    if start_hour < end_hour:
+        return start_hour <= h < end_hour
+    return False
+
+
+def _feed_alert_window_minutes(tz_name: str) -> float:
+    """Day vs night target spacing between feeds (minutes), from *now* in ``tz_name``."""
+    day = float(os.getenv("FEED_ALERT_AFTER_MINUTES") or "150")
+    night = float(os.getenv("FEED_ALERT_NIGHT_AFTER_MINUTES") or "180")
+    start_h = int(os.getenv("FEED_ALERT_NIGHT_START_HOUR") or "22")
+    end_h = int(os.getenv("FEED_ALERT_NIGHT_END_HOUR") or "7")
+    local_now = datetime.now(timezone.utc).astimezone(ZoneInfo(tz_name))
+    return night if _is_night_local(local_now, start_h, end_h) else day
 
 
 def _ago(seconds: float | int | None) -> str:
@@ -174,25 +230,18 @@ async def run(child_index: int) -> None:
         diaper = await api.get_diaper_summary(child_uid)
 
         prefs = feed.prefs if feed else None
-        child_name = (os.getenv("NOTIFY_CHILD_NAME") or "").strip()
         last_feed_ts, last_feed_kind = _last_feed_info(prefs)
         now_ts = datetime.now(timezone.utc).timestamp()
-        alert_after = float(os.getenv("FEED_ALERT_AFTER_MINUTES") or "120")
+        alert_after = _feed_alert_window_minutes(tz_name)
 
         feed_ok = False
         if last_feed_ts is not None:
             feed_ok = (now_ts - last_feed_ts) / 60.0 < alert_after
 
-        diaper_ok = False
-        if diaper and diaper.prefs and diaper.prefs.lastDiaper and diaper.prefs.lastDiaper.start is not None:
-            ld = diaper.prefs.lastDiaper
-            d_ts = float(ld.start)
-            diaper_ok = (now_ts - d_ts) / 60.0 < alert_after
+        # 🔴/urgent/warning: feed window only — diaper does not change title or priority styling.
+        needs_attention = not feed_ok
 
-        overall_ok = feed_ok and diaper_ok
-        needs_attention = not overall_ok
-
-        feed_text = _format_last_feed_line(child_name, last_feed_ts, last_feed_kind, tz_name)
+        feed_text = _format_last_feed_line(last_feed_ts, last_feed_kind, tz_name, now_ts, alert_after)
         lines: list[str] = [feed_text]
 
         if feed and feed.timer and feed.timer.active:
@@ -214,7 +263,8 @@ async def run(child_index: int) -> None:
             if needs_attention
             else title
         )
-        use_title = f"{_emoji(overall_ok)} {title_suffix}"
+        title_suffix = _title_suffix_with_child(title_suffix, CHILD_NAME)
+        use_title = f"{_emoji(feed_ok)} {title_suffix}"
         headers: dict[str, str] = {
             "Title": use_title,
             "Tags": "baby,bottle,warning" if needs_attention else "baby,bottle",
@@ -233,10 +283,10 @@ async def run(child_index: int) -> None:
             vm_token = os.getenv("VOICE_MONKEY_TOKEN")
             vm_device = os.getenv("VOICE_MONKEY_DEVICE")
             if vm_token and vm_device:
-                who = child_name or "the baby"
+                who = CHILD_NAME
                 alexa_text = (
-                    f"Check on {who}. Feed or diaper may need attention — "
-                    f"over {int(alert_after)} minutes since the last check-in window."
+                    f"{who} is past the feeding window — "
+                    f"it's been more than {int(alert_after)} minutes since the last feed."
                 )
                 vm_url = "https://api-v2.voicemonkey.io/announcement"
                 try:
