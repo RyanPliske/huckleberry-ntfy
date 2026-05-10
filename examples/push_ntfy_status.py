@@ -26,13 +26,13 @@ Environment variables:
       Body feed line shows time until the next feed window (e.g. ``15m left``) or overdue (e.g. ``12m overdue``).
   FEED_ALERT_TITLE — title **suffix** after ``🔴`` when feed is overdue (default: ``Baby needs attention``).
 
-  Voice Monkey → Alexa (optional): enable the Voice Monkey skill, create a device in their console,
-      then set:
-  VOICE_MONKEY_TOKEN — API token from Voice Monkey console.
-  VOICE_MONKEY_DEVICE — device id for the Echo you want to speak.
-      When feed is overdue (🔴), the script POSTs an announcement
-      (same cadence as this script — use a less frequent external cron if you only want occasional Alexa nags).
-      Failures are logged to stderr only; the process still exits 0 if ntfy succeeded.
+  Voice Monkey → Alexa (optional): enable the skill and link a speaker in their app, then set:
+  VOICE_MONKEY_TOKEN — API token (API Playground / API Tokens).
+  VOICE_MONKEY_DEVICE — speaker id (e.g. ``echo-show-bz5bz`` from the playground URL).
+      When feed is overdue (🔴), the script **GET**s Voice Monkey **API v3**
+      ``https://api-v3.voicemonkey.io/announce?token=…&device=…&speech=…`` — same pattern as the
+      [API Playground](https://app.voicemonkey.io/playground). v2 ``POST …/announcement`` is deprecated.
+      Failures log to stderr only; the process still exits 0 if ntfy succeeded.
 
   FEED_ALERT_WEBHOOK_URL — optional generic GET URL when feed is overdue (IFTTT, etc.); failures never fail the run.
 
@@ -288,15 +288,14 @@ async def run(child_index: int) -> None:
                     f"{who} is past the feeding window — "
                     f"it's been more than {int(alert_after)} minutes since the last feed."
                 )
-                vm_url = "https://api-v2.voicemonkey.io/announcement"
+                # v3: GET/POST https://api-v3.voicemonkey.io/announce — token + device in query (Playground default).
+                # TTS body field is ``speech`` (v2 used ``text`` on /announcement). See https://voicemonkey.io/docs/api
+                vm_url = "https://api-v3.voicemonkey.io/announce"
+                vm_params = {"token": vm_token, "device": vm_device, "speech": alexa_text}
                 try:
-                    async with session.post(
+                    async with session.get(
                         vm_url,
-                        headers={
-                            "Authorization": vm_token,
-                            "Content-Type": "application/json",
-                        },
-                        json={"device": vm_device, "text": alexa_text},
+                        params=vm_params,
                         timeout=aiohttp.ClientTimeout(total=30),
                     ) as vm_resp:
                         if vm_resp.status < 200 or vm_resp.status >= 300:

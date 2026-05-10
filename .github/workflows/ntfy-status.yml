@@ -13,6 +13,8 @@
 # Optional secrets:
 #   NTFY_TITLE             title suffix after 🟢 when OK (default: Huckleberry)
 #   NTFY_SERVER            default https://ntfy.sh
+#   VOICE_MONKEY_TOKEN     API v3 token — Alexa announcement when feed overdue (with VOICE_MONKEY_DEVICE)
+#   VOICE_MONKEY_DEVICE    e.g. echo-show-bz5bz
 
 name: NTFY status
 
@@ -61,4 +63,6 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_TITLE: ${{ secrets.NTFY_TITLE }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
+          VOICE_MONKEY_TOKEN: ${{ secrets.VOICE_MONKEY_TOKEN }}
+          VOICE_MONKEY_DEVICE: ${{ secrets.VOICE_MONKEY_DEVICE }}
         run: uv run python examples/push_ntfy_status.py
