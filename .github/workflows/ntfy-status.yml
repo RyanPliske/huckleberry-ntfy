@@ -14,8 +14,9 @@ name: NTFY status
 
 on:
   schedule:
-    # Top of every hour (UTC). Adjust to your timezone needs.
-    - cron: "0 * * * *"
+    # Every 5 minutes (UTC). GitHub minimum frequency is 5 minutes.
+    # Scheduled workflows only run from the default branch (usually main).
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
