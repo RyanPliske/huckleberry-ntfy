@@ -4,7 +4,7 @@
 
 Python API client for the Huckleberry baby tracking app using Firebase Firestore.
 
-This fork adds feed/diaper summary helpers, example scripts, and a scheduled **ntfy** workflow (see `.github/workflows/ntfy-status.yml`). Configure **Actions secrets**: `HUCKLEBERRY_EMAIL`, `HUCKLEBERRY_PASSWORD`, `HUCKLEBERRY_TIMEZONE`, `NTFY_TOPIC` (optional: `NTFY_TITLE`, `NTFY_SERVER`).
+This fork adds feed/diaper summary helpers, example scripts, and an **ntfy** GitHub Action (`.github/workflows/ntfy-status.yml`). Configure **Actions secrets**: `HUCKLEBERRY_EMAIL`, `HUCKLEBERRY_PASSWORD`, `HUCKLEBERRY_TIMEZONE`, `NTFY_TOPIC` (optional: `NTFY_TITLE`, `NTFY_SERVER`). For **reliable timing**, trigger via `repository_dispatch` or `workflow_dispatch` (see `examples/RELIABLE_TRIGGER.md`) instead of native `schedule`.
 
 ## Overview
 
