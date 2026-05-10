@@ -25,7 +25,8 @@ Environment variables:
       Title ``🟢``/``🔴`` and urgent extras follow **last feed only**; diaper line is informational.
       **🔴** when there is no last bottle/nursing, **or** minutes since the newer of those is **≥** the
       active window (day ``150`` / night ``180`` by default). **🟢** when a last feed exists and age is **<** that window.
-      Body feed line shows time until the next feed window (e.g. ``15m left``) or overdue (e.g. ``12m overdue``).
+      Body: ``Feed 🍼 3:28p · 2h ago · due 5:47p`` (last feed + ``ago``, plus **due** local time = last feed + window).
+      Diaper: ``Diaper 💧 12:10p · 9m ago`` — same ``ago`` pattern for skim-reading.
   FEED_ALERT_TITLE — optional override when feed is overdue (default: ``Nancy needs attention``, from
       ``CHILD_NAME`` in this file). If set, title is ``Nancy ·`` + your short text for iOS banners.
 
@@ -121,16 +122,6 @@ def _diaper_mode_emoji(mode: str | None) -> str:
     return "🧷"
 
 
-def _fmt_minutes_compact(total_minutes: float) -> str:
-    """Human minutes/hours for countdowns (floors sub-hour)."""
-    m = max(0.0, total_minutes)
-    if m < 60:
-        return f"{max(1, int(m))}m"
-    h = int(m // 60)
-    rem = int(m - h * 60)
-    return f"{h}h" if rem == 0 else f"{h}h {rem}m"
-
-
 def _minutes_to_voice_phrase(total_minutes: float) -> str:
     """Spoken-style duration for Alexa (e.g. 90 -> ``an hour and a half``, 150 -> ``two and a half hours``)."""
     m = int(max(0, round(float(total_minutes))))
@@ -175,32 +166,16 @@ def _minutes_to_voice_phrase(total_minutes: float) -> str:
     return f"{h_part} and {rem_word} minutes"
 
 
-def _until_next_feed_phrase(last_feed_ts: float, now_ts: float, window_minutes: float) -> str:
-    """``15m left`` before the window ends, or ``12m overdue`` after."""
-    elapsed_min = (now_ts - last_feed_ts) / 60.0
-    remaining_min = window_minutes - elapsed_min
-    if remaining_min > 0:
-        if remaining_min < 1:
-            secs = max(1, int(remaining_min * 60))
-            return f"{secs}s left"
-        return f"{_fmt_minutes_compact(remaining_min)} left"
-    overdue_min = elapsed_min - window_minutes
-    if overdue_min < 1:
-        secs = max(1, int(overdue_min * 60))
-        return f"{secs}s overdue"
-    return f"{_fmt_minutes_compact(overdue_min)} overdue"
-
-
-def _format_last_feed_line(
-    ts: float | None, kind: str, tz_name: str, now_ts: float, window_minutes: float
-) -> str:
-    """Body feed line — clock of last feed + time left / overdue until next feed."""
+def _format_last_feed_line(ts: float | None, kind: str, tz_name: str, window_minutes: float) -> str:
+    """Body feed line: last feed ``ago`` + **due** local time (last feed + window), parallel to diaper ``ago``."""
     if ts is None:
-        return "No feed · —"
+        return "Feed · no log · due —"
     em = _feed_kind_emoji(kind)
     clock = _clock_ampm(ts, tz_name)
-    tail = _until_next_feed_phrase(ts, now_ts, window_minutes)
-    return f"{em} {clock} · {tail}"
+    ago_s = _ago(ts)
+    due_ts = ts + float(window_minutes) * 60.0
+    due_clock = _clock_ampm(due_ts, tz_name)
+    return f"Feed {em} {clock} · {ago_s} · due {due_clock}"
 
 
 def _emoji(ok: bool) -> str:
@@ -298,7 +273,7 @@ async def run(child_index: int) -> None:
             and feed_age_min >= alert_after + vm_grace
         )
 
-        feed_text = _format_last_feed_line(last_feed_ts, last_feed_kind, tz_name, now_ts, alert_after)
+        feed_text = _format_last_feed_line(last_feed_ts, last_feed_kind, tz_name, alert_after)
         lines: list[str] = [feed_text]
 
         if feed and feed.timer and feed.timer.active:
@@ -308,9 +283,9 @@ async def run(child_index: int) -> None:
             ld = diaper.prefs.lastDiaper
             d_ts = float(ld.start)
             dem = _diaper_mode_emoji(ld.mode)
-            lines.append(f"{dem} {_clock_ampm(d_ts, tz_name)} · {_ago(d_ts)}")
+            lines.append(f"Diaper {dem} {_clock_ampm(d_ts, tz_name)} · {_ago(d_ts)}")
         else:
-            lines.append("🧷 —")
+            lines.append("Diaper · —")
 
         body = "\n".join(lines)
 
