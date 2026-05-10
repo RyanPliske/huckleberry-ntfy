@@ -130,6 +130,50 @@ def _fmt_minutes_compact(total_minutes: float) -> str:
     return f"{h}h" if rem == 0 else f"{h}h {rem}m"
 
 
+def _minutes_to_voice_phrase(total_minutes: float) -> str:
+    """Spoken-style duration for Alexa (e.g. 90 -> ``an hour and a half``, 150 -> ``two and a half hours``)."""
+    m = int(max(0, round(float(total_minutes))))
+    if m <= 0:
+        return "a few minutes"
+    if m < 60:
+        if m == 1:
+            return "one minute"
+        if m == 15:
+            return "fifteen minutes"
+        if m == 30:
+            return "half an hour"
+        if m == 45:
+            return "forty-five minutes"
+        return f"{m} minutes"
+
+    h, rem = divmod(m, 60)
+    if rem == 0:
+        if h == 1:
+            return "an hour"
+        if h == 2:
+            return "two hours"
+        if h == 3:
+            return "three hours"
+        if h == 4:
+            return "four hours"
+        return f"{h} hours"
+
+    if rem == 30:
+        if h == 1:
+            return "an hour and a half"
+        if h == 2:
+            return "two and a half hours"
+        if h == 3:
+            return "three and a half hours"
+        if h == 4:
+            return "four and a half hours"
+        return f"{h} and a half hours"
+
+    h_part = {1: "an hour", 2: "two hours", 3: "three hours", 4: "four hours"}.get(h, f"{h} hours")
+    rem_word = {15: "fifteen", 20: "twenty", 45: "forty-five"}.get(rem, str(rem))
+    return f"{h_part} and {rem_word} minutes"
+
+
 def _until_next_feed_phrase(last_feed_ts: float, now_ts: float, window_minutes: float) -> str:
     """``15m left`` before the window ends, or ``12m overdue`` after."""
     elapsed_min = (now_ts - last_feed_ts) / 60.0
@@ -296,9 +340,11 @@ async def run(child_index: int) -> None:
             vm_device = os.getenv("VOICE_MONKEY_DEVICE")
             if vm_token and vm_device and voice_monkey_fire:
                 who = CHILD_NAME
+                grace_sp = _minutes_to_voice_phrase(vm_grace)
+                window_sp = _minutes_to_voice_phrase(alert_after)
                 alexa_text = (
-                    f"{who} is {int(vm_grace)} minutes past feeding time — "
-                    f"please feed {who} now."
+                    f"{who} is {grace_sp} past the scheduled feed time — "
+                    f"it's been more than {window_sp} since the last feed. Please feed {who} now."
                 )
                 # v3: GET/POST https://api-v3.voicemonkey.io/announce — token + device in query (Playground default).
                 # TTS body field is ``speech`` (v2 used ``text`` on /announcement). See https://voicemonkey.io/docs/api
