@@ -23,15 +23,18 @@ Environment variables:
   FEED_ALERT_NIGHT_START_HOUR / FEED_ALERT_NIGHT_END_HOUR — local ``HUCKLEBERRY_TIMEZONE`` hours [0–23].
       Night is ``start`` through just before ``end``; default **22 → 7** (10pm–before-7am).
       Title ``🟢``/``🔴`` and urgent extras follow **last feed only**; diaper line is informational.
+      **🔴** when there is no last bottle/nursing, **or** minutes since the newer of those is **≥** the
+      active window (day ``150`` / night ``180`` by default). **🟢** when a last feed exists and age is **<** that window.
       Body feed line shows time until the next feed window (e.g. ``15m left``) or overdue (e.g. ``12m overdue``).
   FEED_ALERT_TITLE — title **suffix** after ``🔴`` when feed is overdue (default: ``Baby needs attention``).
 
   Voice Monkey → Alexa (optional): enable the skill and link a speaker in their app, then set:
   VOICE_MONKEY_TOKEN — API token (API Playground / API Tokens).
   VOICE_MONKEY_DEVICE — speaker id (e.g. ``echo-show-bz5bz`` from the playground URL).
-      When feed is overdue (🔴), the script **GET**s Voice Monkey **API v3**
-      ``https://api-v3.voicemonkey.io/announce?token=…&device=…&speech=…`` — same pattern as the
-      [API Playground](https://app.voicemonkey.io/playground). v2 ``POST …/announcement`` is deprecated.
+  VOICE_MONKEY_GRACE_AFTER_FEED_MINUTES — Alexa only after this many minutes **past** the feed deadline
+      (default: ``30``). Deadline = last feed + day/night window; ntfy can already be 🔴 before Alexa speaks.
+      Requires a logged last feed; if there is none, Voice Monkey does not run (ntfy still 🔴).
+      **GET** ``https://api-v3.voicemonkey.io/announce?token=…&device=…&speech=…`` — [API Playground](https://app.voicemonkey.io/playground).
       Failures log to stderr only; the process still exits 0 if ntfy succeeded.
 
   FEED_ALERT_WEBHOOK_URL — optional generic GET URL when feed is overdue (IFTTT, etc.); failures never fail the run.
@@ -235,11 +238,20 @@ async def run(child_index: int) -> None:
         alert_after = _feed_alert_window_minutes(tz_name)
 
         feed_ok = False
+        feed_age_min: float | None = None
         if last_feed_ts is not None:
-            feed_ok = (now_ts - last_feed_ts) / 60.0 < alert_after
+            feed_age_min = (now_ts - last_feed_ts) / 60.0
+            feed_ok = feed_age_min < alert_after
 
         # 🔴/urgent/warning: feed window only — diaper does not change title or priority styling.
         needs_attention = not feed_ok
+
+        vm_grace = float(os.getenv("VOICE_MONKEY_GRACE_AFTER_FEED_MINUTES") or "30")
+        voice_monkey_fire = (
+            last_feed_ts is not None
+            and feed_age_min is not None
+            and feed_age_min >= alert_after + vm_grace
+        )
 
         feed_text = _format_last_feed_line(last_feed_ts, last_feed_kind, tz_name, now_ts, alert_after)
         lines: list[str] = [feed_text]
@@ -282,11 +294,11 @@ async def run(child_index: int) -> None:
         if needs_attention:
             vm_token = os.getenv("VOICE_MONKEY_TOKEN")
             vm_device = os.getenv("VOICE_MONKEY_DEVICE")
-            if vm_token and vm_device:
+            if vm_token and vm_device and voice_monkey_fire:
                 who = CHILD_NAME
                 alexa_text = (
-                    f"{who} is past the feeding window — "
-                    f"it's been more than {int(alert_after)} minutes since the last feed."
+                    f"{who} is {int(vm_grace)} minutes past feeding time — "
+                    f"please feed {who} now."
                 )
                 # v3: GET/POST https://api-v3.voicemonkey.io/announce — token + device in query (Playground default).
                 # TTS body field is ``speech`` (v2 used ``text`` on /announcement). See https://voicemonkey.io/docs/api
