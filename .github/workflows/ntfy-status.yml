@@ -11,7 +11,7 @@
 #   NTFY_TOPIC             secret topic you subscribed to in the ntfy app
 #
 # Optional secrets:
-#   NTFY_TITLE             notification title (default: Huckleberry)
+#   NTFY_TITLE             title suffix after 🟢 when OK (default: Huckleberry)
 #   NTFY_SERVER            default https://ntfy.sh
 
 name: NTFY status
