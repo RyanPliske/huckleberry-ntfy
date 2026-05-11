@@ -276,9 +276,6 @@ async def run(child_index: int) -> None:
         feed_text = _format_last_feed_line(last_feed_ts, last_feed_kind, tz_name, alert_after)
         lines: list[str] = [feed_text]
 
-        if feed and feed.timer and feed.timer.active:
-            lines.append("Feed timer: active")
-
         if diaper and diaper.prefs and diaper.prefs.lastDiaper and diaper.prefs.lastDiaper.start is not None:
             ld = diaper.prefs.lastDiaper
             d_ts = float(ld.start)
