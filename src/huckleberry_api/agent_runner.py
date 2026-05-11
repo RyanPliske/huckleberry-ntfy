@@ -135,6 +135,18 @@ def _format_local_feed_time(ts: float, tz_name: str) -> str:
     return f"{clock} on {dt.strftime('%b')} {dt.day}"
 
 
+def _diaper_mode_spoken(mode: DiaperMode | None) -> str:
+    """Short parent-facing label for voice (Huckleberry ``mode`` literals)."""
+    if mode is None:
+        return "a diaper change"
+    return {
+        "pee": "wet (pee)",
+        "poo": "dirty (poop)",
+        "both": "wet and dirty",
+        "dry": "a dry check",
+    }.get(mode, repr(mode))
+
+
 _AGENT_INSTRUCTIONS = """\
 You are a concise baby-care assistant. The caregiver has already selected one child in the app.
 Use the tools to read or write Huckleberry data — do not invent events.
@@ -146,6 +158,7 @@ Rules:
 - For ``at_time_iso`` / time fields: null / omit / ``now`` means local now; otherwise ISO-8601 (naive = local zone).
 - After a successful write, reply in one short sentence what was logged.
 - **Whenever** the user asks **when** the last feed was, **what time**, or **how long ago**: you **MUST** call ``get_feed_timing_hint`` or ``get_last_feeding_summary`` first — **never** answer from memory or from bottle type alone. Your reply **MUST** include the **local clock time** the tool returns (for example 2:30p today or 2:30 PM).
+- **Whenever** the user asks **when** the last diaper was, **last diaper change**, **last wet diaper**, **poopy diaper**, or **how long since** a diaper: you **MUST** call ``get_last_diaper_summary`` first — **never** guess. Your reply **MUST** include the **local clock time** the tool returns.
 - For **next feed due** or **overdue**: call ``get_feed_timing_hint`` first. Use ``get_last_feeding_summary`` when both last bottle and last nursing times matter separately.
 """
 
@@ -223,15 +236,24 @@ async def get_last_feeding_summary(ctx: RunContext[HuckDeps]) -> str:
 
 @agent.tool
 async def get_last_diaper_summary(ctx: RunContext[HuckDeps]) -> str:
-    """Return a short read-only summary from diaper prefs (e.g. last change mode and start)."""
+    """Read-only: last diaper change with **local speakable time** and how long ago (prefs ``start`` normalized).
+
+    Use for any question about **when** the last diaper was or **how long ago** it was.
+    """
+    tz = ctx.deps.tz_name
     doc = await ctx.deps.api.get_diaper_summary(ctx.deps.child_uid)
     if not doc or not doc.prefs:
         return "No diaper summary on file."
     ld = doc.prefs.lastDiaper
     if ld is None or ld.start is None:
         return "No last diaper in prefs."
-    mode = ld.mode if ld.mode is not None else "?"
-    return f"last_diaper mode={mode!r} start_epoch={ld.start}"
+    ts = _raw_start_to_epoch_seconds(ld.start)
+    if ts is None:
+        return "No last diaper timestamp in prefs."
+    mode_phrase = _diaper_mode_spoken(ld.mode)
+    when_spoken = _format_local_feed_time(ts, tz)
+    ago = _age_phrase_seconds(ts)
+    return f"Last diaper was {mode_phrase} at {when_spoken} local time ({ago})."
 
 
 @agent.tool

@@ -16,7 +16,7 @@ Voice stack overview and roadmap: [`alexa-voice-agent-plan.md`](alexa-voice-agen
 |------|--------|
 | **`get_feed_timing_hint`** | Read-only: last feed (bottle vs nursing, newer wins), local-ish clock, **how long ago**, **due time** and **overdue / minutes until due** using the same **spacing heuristic** as `examples/push_ntfy_status.py` (`FEED_ALERT_*` env vars). Best for “when was the last feeding?” and “when does she need fed again?” style questions. |
 | **`get_last_feeding_summary`** | Read-only: last **bottle** and last **nursing** each with **local speakable time** and “ago” (prefs `start` normalized from seconds or milliseconds). |
-| **`get_last_diaper_summary`** | Read-only: last diaper mode + start epoch from prefs. |
+| **`get_last_diaper_summary`** | Read-only: last diaper mode with **local speakable time** and “ago” (prefs `start` normalized from seconds or milliseconds). |
 | **`log_bottle_feeding`** | Write: log a bottle. |
 | **`log_diaper_change`** | Write: log a diaper. |
 | **`log_breastfeeding_session`** | Write: log nursing / breast feeding (`log_nursing`). |
