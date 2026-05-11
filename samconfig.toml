@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "huckleberry-alexa"
+resolve_s3 = true
+s3_prefix = "huckleberry-alexa"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = ["HuckleberryAlexaFunction=121218949112.dkr.ecr.us-east-1.amazonaws.com/huckleberryalexaa5b5f004/huckleberryalexafunctionad37d901repo"]
+
+[default.global.parameters]
+region = "us-east-1"

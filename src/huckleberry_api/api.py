@@ -125,7 +125,7 @@ async def _raise_for_status_with_details(response: aiohttp.ClientResponse, opera
     try:
         response_payload = await response.json(content_type=None)
         message = f"{message}: {json.dumps(response_payload, separators=(',', ':'))}"
-    except aiohttp.ContentTypeError, json.JSONDecodeError, UnicodeDecodeError, ValueError:
+    except (aiohttp.ContentTypeError, json.JSONDecodeError, UnicodeDecodeError, ValueError):
         response_body = await response.text()
         if response_body:
             message = f"{message}: {response_body}"

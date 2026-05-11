@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Huckleberry Alexa skill — Lambda container (pydantic-ai + Huckleberry API).
+
+# Build: sam build --from-cache
+# Deploy: sam deploy --guided
+# Point the Alexa skill endpoint at the deployed function ARN (no API Gateway needed).
+
+Globals:
+  Function:
+    Architectures:
+      - x86_64
+
+Resources:
+  HuckleberryAlexaFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerTag: huckleberry-alexa
+      DockerContext: .
+      Dockerfile: alexa/Dockerfile
+    Properties:
+      PackageType: Image
+      Timeout: 60
+      MemorySize: 512
+      # Set OPENAI_API_KEY, HUCKLEBERRY_*, etc. in the Lambda console or sam deploy parameter overrides.
+
+Outputs:
+  HuckleberryAlexaFunctionArn:
+    Description: Lambda ARN — paste as Alexa skill HTTPS endpoint (AWS Lambda ARN).
+    Value: !GetAtt HuckleberryAlexaFunction.Arn

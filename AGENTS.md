@@ -28,6 +28,12 @@
 - Use: `.copilot/skills/huckleberry-apk-reverse/SKILL.md`
 - Current decompilation context: `jadx output latest/`
 
+## Experimental LLM agent
+
+- `src/huckleberry_api/agent_runner.py` — shared **pydantic-ai** + OpenAI tools (`run_agent_prompt`).
+- `examples/huckleberry_agent_cli.py` — local CLI (`uv sync --group agent` or `pip install .[agent]`).
+- `alexa/` + root `template.yaml` — **Alexa skill** Lambda (ASK SDK); build with SAM, endpoint = Lambda ARN (no API Gateway). See `alexa/README.md` (`uv sync --group alexa` or `pip install .[alexa]`).
+
 ## Maintenance
 
 When discovering new payload structures or semantics:

@@ -7,7 +7,7 @@ license = { text = "MIT" }
 authors = [
     { name = "Woyken", email = "13166802+Woyken@users.noreply.github.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "google-cloud-firestore>=2.11.0",
     "pydantic>=2.10.0",
@@ -20,6 +20,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
 
@@ -28,7 +30,25 @@ Homepage = "https://github.com/RyanPliske/huckleberry-ntfy"
 Repository = "https://github.com/RyanPliske/huckleberry-ntfy"
 Issues = "https://github.com/RyanPliske/huckleberry-ntfy/issues"
 
+[project.optional-dependencies]
+agent = [
+    "openai>=2.36.0",
+    "pydantic-ai>=1.93.0",
+]
+alexa = [
+    "ask-sdk-core>=1.19.0",
+    "ask-sdk-model>=1.82.0",
+    "ask-sdk-runtime>=1.19.0",
+]
+
 [dependency-groups]
+agent = [
+    "openai>=2.36.0",
+    "pydantic-ai>=1.93.0",
+]
+alexa = [
+    "ask-sdk-core>=1.19.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -45,7 +65,7 @@ title_format = "## [{version}] - {project_date}"
 issue_format = "[#{issue}](https://github.com/Woyken/py-huckleberry-api/issues/{issue})"
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py312"
 line-length = 120
 exclude = [
     ".git",
