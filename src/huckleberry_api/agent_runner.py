@@ -2,13 +2,17 @@
 
 Used by ``examples/huckleberry_agent_cli.py`` and the Alexa Lambda handler. Install optional
 extras ``[agent]`` (``pip install huckleberry-api[agent]``) or ``uv sync --group agent``.
+
+Optional **Lambda / CLI** env for ``get_feed_timing_hint`` (same as ``examples/push_ntfy_status.py``):
+``FEED_ALERT_AFTER_MINUTES``, ``FEED_ALERT_NIGHT_AFTER_MINUTES``, ``FEED_ALERT_NIGHT_START_HOUR``,
+``FEED_ALERT_NIGHT_END_HOUR``.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -45,6 +49,92 @@ class HuckDeps:
     tz_name: str
 
 
+def _raw_start_to_epoch_seconds(raw: object) -> float | None:
+    """Huckleberry prefs ``start`` may be Unix **seconds** or **milliseconds**; normalize to seconds."""
+    if raw is None:
+        return None
+    x = float(raw)
+    if x > 1e12:
+        x /= 1000.0
+    return x
+
+
+def _last_feed_epoch_seconds_and_kind(prefs: object) -> tuple[float | None, str]:
+    """Most recent feed: epoch seconds and kind label (same semantics as ``push_ntfy_status._last_feed_info``)."""
+    if prefs is None:
+        return None, ""
+    lb = getattr(prefs, "lastBottle", None)
+    ln = getattr(prefs, "lastNursing", None)
+    tb = _raw_start_to_epoch_seconds(getattr(lb, "start", None)) if lb is not None else None
+    tn = _raw_start_to_epoch_seconds(getattr(ln, "start", None)) if ln is not None else None
+
+    if tb is None and tn is None:
+        return None, ""
+    if tb is None:
+        return tn, "nursing"
+    if tn is None:
+        bottle_label = getattr(lb, "bottleType", None) or "bottle"
+        return tb, str(bottle_label)
+    if tb >= tn:
+        bottle_label = getattr(lb, "bottleType", None) or "bottle"
+        return tb, str(bottle_label)
+    return tn, "nursing"
+
+
+def _is_night_local(local_dt: datetime, start_hour: int, end_hour: int) -> bool:
+    """True when ``local_dt`` is in the night window (e.g. 22:00–06:59 for start=22, end=7)."""
+    h = local_dt.hour
+    start_hour %= 24
+    end_hour %= 24
+    if start_hour > end_hour:
+        return h >= start_hour or h < end_hour
+    if start_hour < end_hour:
+        return start_hour <= h < end_hour
+    return False
+
+
+def _feed_alert_window_minutes_from_env(tz_name: str) -> float:
+    """Day vs night spacing between feeds (minutes) — env mirrors ``examples/push_ntfy_status.py``."""
+    day = float(os.getenv("FEED_ALERT_AFTER_MINUTES") or "150")
+    night = float(os.getenv("FEED_ALERT_NIGHT_AFTER_MINUTES") or "180")
+    start_h = int(os.getenv("FEED_ALERT_NIGHT_START_HOUR") or "22")
+    end_h = int(os.getenv("FEED_ALERT_NIGHT_END_HOUR") or "7")
+    local_now = datetime.now(timezone.utc).astimezone(ZoneInfo(tz_name))
+    return night if _is_night_local(local_now, start_h, end_h) else day
+
+
+def _local_ampm(ts: float, tz_name: str) -> str:
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(ZoneInfo(tz_name))
+    h12 = dt.hour % 12
+    if h12 == 0:
+        h12 = 12
+    return f"{h12}:{dt.minute:02d}{'a' if dt.hour < 12 else 'p'}"
+
+
+def _age_phrase_seconds(ts: float) -> str:
+    delta = max(0.0, datetime.now(timezone.utc).timestamp() - ts)
+    if delta < 60:
+        return "just now"
+    if delta < 3600:
+        m = int(delta // 60)
+        return f"{m} minute{'s' if m != 1 else ''} ago"
+    h, rem = divmod(int(delta), 3600)
+    m = rem // 60
+    if m:
+        return f"{h} hour{'s' if h != 1 else ''} and {m} minutes ago"
+    return f"{h} hour{'s' if h != 1 else ''} ago"
+
+
+def _format_local_feed_time(ts: float, tz_name: str) -> str:
+    """Spoken-style local time; adds calendar day if not today (``HUCKLEBERRY_TIMEZONE``)."""
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(ZoneInfo(tz_name))
+    now_local = datetime.now(timezone.utc).astimezone(ZoneInfo(tz_name))
+    clock = _local_ampm(ts, tz_name)
+    if dt.date() == now_local.date():
+        return f"{clock} today"
+    return f"{clock} on {dt.strftime('%b')} {dt.day}"
+
+
 _AGENT_INSTRUCTIONS = """\
 You are a concise baby-care assistant. The caregiver has already selected one child in the app.
 Use the tools to read or write Huckleberry data — do not invent events.
@@ -55,6 +145,8 @@ Rules:
 - **Breastfeeding** = **nursing** = **breast feeding** (same Huckleberry action). Use ``log_breastfeeding_session``: either ``duration_minutes`` + optional ``end_time_iso`` (default now), OR both ``start_time_iso`` and ``end_time_iso``. ``side`` is left or right (ending side when using duration-only).
 - For ``at_time_iso`` / time fields: null / omit / ``now`` means local now; otherwise ISO-8601 (naive = local zone).
 - After a successful write, reply in one short sentence what was logged.
+- **Whenever** the user asks **when** the last feed was, **what time**, or **how long ago**: you **MUST** call ``get_feed_timing_hint`` or ``get_last_feeding_summary`` first — **never** answer from memory or from bottle type alone. Your reply **MUST** include the **local clock time** the tool returns (for example 2:30p today or 2:30 PM).
+- For **next feed due** or **overdue**: call ``get_feed_timing_hint`` first. Use ``get_last_feeding_summary`` when both last bottle and last nursing times matter separately.
 """
 
 
@@ -66,17 +158,66 @@ agent = Agent(
 
 
 @agent.tool
+async def get_feed_timing_hint(ctx: RunContext[HuckDeps]) -> str:
+    """Read-only: **local clock time** of last feed (bottle vs nursing, whichever is newer), how long ago, due / overdue.
+
+    Always includes a speakable local time (12h + am/pm). Spacing uses the same optional env vars as
+    ``examples/push_ntfy_status.py``: ``FEED_ALERT_AFTER_MINUTES`` (default 150),
+    ``FEED_ALERT_NIGHT_AFTER_MINUTES`` (default 180), ``FEED_ALERT_NIGHT_START_HOUR`` / ``FEED_ALERT_NIGHT_END_HOUR`` (defaults 22 and 7, local ``HUCKLEBERRY_TIMEZONE``). Not medical advice — same heuristic as the ntfy script.
+    """
+    tz = ctx.deps.tz_name
+    doc = await ctx.deps.api.get_feed_summary(ctx.deps.child_uid)
+    if not doc or not doc.prefs:
+        return "No feed summary on file."
+    last_ts, kind = _last_feed_epoch_seconds_and_kind(doc.prefs)
+    if last_ts is None:
+        return "No last bottle or nursing found in feed prefs."
+
+    window_min = _feed_alert_window_minutes_from_env(tz)
+    ago = _age_phrase_seconds(last_ts)
+    due_ts = last_ts + window_min * 60.0
+    due_clock = _local_ampm(due_ts, tz)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    overdue_min = (now_ts - due_ts) / 60.0
+
+    when_spoken = _format_local_feed_time(last_ts, tz)
+    kind_spoken = "nursing" if kind == "nursing" else f"bottle ({kind})"
+    base = (
+        f"Last feed was {kind_spoken} at {when_spoken} local time ({ago}). "
+        f"Using a spacing window of {int(window_min)} minutes from prefs, the next feed would be around {due_clock} local."
+    )
+    if overdue_min > 0:
+        om = int(round(overdue_min))
+        base += f" That is about {om} minute{'s' if om != 1 else ''} overdue by that heuristic."
+    else:
+        remain_min = int(round((due_ts - now_ts) / 60.0))
+        if remain_min <= 0:
+            base += " That window is about up now."
+        else:
+            base += f" About {remain_min} minute{'s' if remain_min != 1 else ''} until that due time."
+    return base
+
+
+@agent.tool
 async def get_last_feeding_summary(ctx: RunContext[HuckDeps]) -> str:
-    """Return a short text summary of last bottle and last breast / nursing session for context (read-only)."""
+    """Return last bottle and last nursing with **local speakable times** (not raw epochs) for voice replies."""
+    tz = ctx.deps.tz_name
     doc = await ctx.deps.api.get_feed_summary(ctx.deps.child_uid)
     if not doc or not doc.prefs:
         return "No feed summary on file."
     p = doc.prefs
     parts: list[str] = []
     if p.lastBottle and p.lastBottle.start is not None:
-        parts.append(f"last bottle start epoch={p.lastBottle.start} type={p.lastBottle.bottleType!r}")
+        ts = _raw_start_to_epoch_seconds(p.lastBottle.start)
+        if ts is not None:
+            bt = p.lastBottle.bottleType or "bottle"
+            parts.append(
+                f"Last bottle ({bt}): {_format_local_feed_time(ts, tz)} — {_age_phrase_seconds(ts)}"
+            )
     if p.lastNursing and p.lastNursing.start is not None:
-        parts.append(f"last nursing start epoch={p.lastNursing.start}")
+        ts = _raw_start_to_epoch_seconds(p.lastNursing.start)
+        if ts is not None:
+            parts.append(f"Last nursing: {_format_local_feed_time(ts, tz)} — {_age_phrase_seconds(ts)}")
     return "; ".join(parts) if parts else "No last bottle or nursing in prefs."
 
 

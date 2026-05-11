@@ -111,6 +111,7 @@ Two paths:
 ## Related links
 
 - Deploy and test: `alexa/README.md`
+- **Tool list + NLU vs tools:** [`agent-tools-and-alexa-nlu.md`](agent-tools-and-alexa-nlu.md)
 - Repo agent rules: `AGENTS.md`
 - Reverse-engineering / schema rules: `firebase_types.py`, `api.py` (see `AGENTS.md`)
 

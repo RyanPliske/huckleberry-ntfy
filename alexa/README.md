@@ -2,13 +2,15 @@
 
 Natural-language logging for Huckleberry via the same **pydantic-ai** agent as `examples/huckleberry_agent_cli.py`. Alexa invokes **AWS Lambda** directly by ARN — **API Gateway is not required** for the skill endpoint.
 
-**Architecture, NLU vs LLM, and roadmap:** [`_docs/alexa-voice-agent-plan.md`](../_docs/alexa-voice-agent-plan.md).
+**Architecture, NLU vs LLM, and roadmap:** [`_docs/alexa-voice-agent-plan.md`](../_docs/alexa-voice-agent-plan.md). **Agent tools vs Alexa samples:** [`_docs/agent-tools-and-alexa-nlu.md`](../_docs/agent-tools-and-alexa-nlu.md).
 
 ## Prerequisites
 
 - AWS account, **AWS CLI** (`aws`), **AWS SAM CLI** (`sam`), Docker.
 - [Alexa developer account](https://developer.amazon.com/) and a new custom skill.
 - Environment secrets: `OPENAI_API_KEY`, `HUCKLEBERRY_EMAIL`, `HUCKLEBERRY_PASSWORD`, `HUCKLEBERRY_TIMEZONE`. Optional: `OPENAI_MODEL`, `HUCKLEBERRY_CHILD_INDEX` (default `0` = first child on the account).
+
+**Timezone vs region:** `HUCKLEBERRY_TIMEZONE` must be the **caregiver’s IANA zone** (e.g. `America/Chicago`). The agent uses it for “today”, clock times, and “ago” — not the Lambda region. Deploying in `us-east-1` does not imply Eastern time; set the same value you use locally so Lambda matches the CLI.
 
 ### Install AWS SAM CLI (if `command not found sam`)
 
