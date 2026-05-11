@@ -117,8 +117,7 @@ sb.add_request_handler(HelpIntentHandler())
 sb.add_request_handler(CancelStopIntentHandler())
 sb.add_request_handler(SessionEndedRequestHandler())
 
-skill = sb.create()
-
-
-def lambda_handler(event, context):  # type: ignore[no-untyped-def]
-    return skill.invoke(event, context)
+# Use the SDK wrapper: it deserializes the Lambda ``event`` dict into
+# ``RequestEnvelope`` before ``invoke``. Passing a raw dict to ``skill.invoke``
+# causes ``'dict' object has no attribute 'session'``.
+lambda_handler = sb.lambda_handler()
