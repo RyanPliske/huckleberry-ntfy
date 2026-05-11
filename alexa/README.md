@@ -45,7 +45,7 @@ aws sts get-caller-identity
 
 ## Interaction model
 
-Import or merge `interaction_model_en_US.json` in the Alexa developer console (Build → Interaction Model → JSON Editor). The sample **`invocationName`** is **`huckle berry`** (two words). That matches how Alexa expects you to say it (“huckle” + “berry”) and avoids the **stricter one-word** invocation rules in the console. Change it only if the console rejects it or it conflicts with another skill on your account.
+Import or merge `interaction_model_en_US.json` in the Alexa developer console (Build → Interaction Model → JSON Editor). The sample **`invocationName`** is **`nancy margaret`** (two words). That matches how Alexa expects you to say it (“huckle” + “berry”) and avoids the **stricter one-word** invocation rules in the console. Change it only if the console rejects it or it conflicts with another skill on your account.
 
 **Public certification:** Amazon may ask for clarity on **brand-like** names. Fine for **personal / dev** testing; for store publication, follow their invocation and trademark guidance.
 
