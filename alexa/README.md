@@ -2,6 +2,8 @@
 
 Natural-language logging for Huckleberry via the same **pydantic-ai** agent as `examples/huckleberry_agent_cli.py`. Alexa invokes **AWS Lambda** directly by ARN — **API Gateway is not required** for the skill endpoint.
 
+**Architecture, NLU vs LLM, and roadmap:** [`_docs/alexa-voice-agent-plan.md`](../_docs/alexa-voice-agent-plan.md).
+
 ## Prerequisites
 
 - AWS account, **AWS CLI** (`aws`), **AWS SAM CLI** (`sam`), Docker.
@@ -41,9 +43,25 @@ aws sts get-caller-identity
 
 ## Interaction model
 
-Import or merge `interaction_model_en_US.json` in the Alexa developer console (Build → Interaction Model → JSON Editor). You may need to change `invocationName` if it conflicts with another skill on your account.
+Import or merge `interaction_model_en_US.json` in the Alexa developer console (Build → Interaction Model → JSON Editor). The sample **`invocationName`** is **`huckle berry`** (two words). That matches how Alexa expects you to say it (“huckle” + “berry”) and avoids the **stricter one-word** invocation rules in the console. Change it only if the console rejects it or it conflicts with another skill on your account.
 
-The custom intent **`CaptureQueryIntent`** uses slot **`query`** (`AMAZON.SearchQuery`) so open-ended phrases route to the LLM.
+**Public certification:** Amazon may ask for clarity on **brand-like** names. Fine for **personal / dev** testing; for store publication, follow their invocation and trademark guidance.
+
+The custom intent **`CaptureQueryIntent`** uses slot **`query`** (`AMAZON.SearchQuery`) so open-ended phrases route to the LLM. **Alexa still matches a carrier phrase first** (e.g. “tell me …”, “what was …”); anything that does not match any intent hits **`AMAZON.FallbackIntent`** (friendly reprompt — no raw text to send to the model). **Meta questions** like “what can you do?” are added to **`AMAZON.HelpIntent`** and answered by the **same OpenAI agent** with a fixed help prompt.
+
+### One sentence from cold start (no “open” first)
+
+Use Alexa’s **ask … to …** pattern so the skill and intent run in **one** turn (invocation name **`huckle berry`**):
+
+- **Alexa, ask huckle berry to log 2 oz of formula.**
+- **Alexa, ask huckle berry to log two ounces of formula.**
+- **Alexa, tell huckle berry to log a pee diaper.**
+
+Saying only *“huckle berry, log two ounces…”* without **Alexa** / **ask** / **to** often goes to **general Alexa**, not your skill.
+
+### After you already said “open …”
+
+You are **inside** the skill — do **not** repeat the invocation name. Say the carrier + detail only, e.g. **“log 2 oz of formula”** or **“please log a wet diaper.”** Repeating *“huckle berry …”* again in turn two is unnecessary and can confuse routing.
 
 ## Build and deploy Lambda
 

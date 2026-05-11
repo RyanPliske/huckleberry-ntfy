@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "huckleberry log",
+      "invocationName": "huckle berry",
       "intents": [
         {
           "name": "CaptureQueryIntent",
@@ -12,11 +12,39 @@
             }
           ],
           "samples": [
-            "{query}",
             "log {query}",
             "please log {query}",
             "record {query}",
-            "huckleberry {query}"
+            "to log {query}",
+            "go ahead and log {query}",
+            "tell me to log {query}",
+            "can you log {query}",
+            "add {query}",
+            "hey {query}",
+            "so {query}",
+            "quick {query}",
+            "can you {query}",
+            "could you {query}",
+            "what about {query}",
+            "tell me {query}",
+            "tell me about {query}",
+            "what was {query}",
+            "what is {query}",
+            "what's {query}",
+            "i need {query}",
+            "i want to {query}",
+            "we need to {query}",
+            "question {query}",
+            "did she {query}",
+            "did he {query}",
+            "baby {query}",
+            "check {query}",
+            "get {query}",
+            "give me {query}",
+            "how about {query}",
+            "look up {query}",
+            "remember {query}",
+            "update {query}"
           ]
         },
         {
@@ -25,10 +53,37 @@
         },
         {
           "name": "AMAZON.HelpIntent",
-          "samples": []
+          "samples": [
+            "what can you do",
+            "what can you do for me",
+            "what do you do",
+            "what are you",
+            "what are you for",
+            "how does this work",
+            "how do i use this",
+            "what can i ask",
+            "what can i ask you",
+            "what are my options",
+            "what do you know",
+            "who are you",
+            "help me understand",
+            "hey what can you do",
+            "what else can you do",
+            "what all can you do",
+            "what all can you do for me",
+            "list available tools",
+            "list your tools",
+            "what tools do you have",
+            "what can this skill do",
+            "what are you able to do"
+          ]
         },
         {
           "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
           "samples": []
         }
       ],

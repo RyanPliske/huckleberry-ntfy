@@ -32,7 +32,7 @@
 
 - `src/huckleberry_api/agent_runner.py` — shared **pydantic-ai** + OpenAI tools (`run_agent_prompt`).
 - `examples/huckleberry_agent_cli.py` — local CLI (`uv sync --group agent` or `pip install .[agent]`).
-- `alexa/` + root `template.yaml` — **Alexa skill** Lambda (ASK SDK); build with SAM, endpoint = Lambda ARN (no API Gateway). See `alexa/README.md` (`uv sync --group alexa` or `pip install .[alexa]`).
+- `alexa/` + root `template.yaml` — **Alexa skill** Lambda (ASK SDK); build with SAM, endpoint = Lambda ARN (no API Gateway). Sample invocation name **`huckle berry`** (two words) in `alexa/interaction_model_en_US.json`. See `alexa/README.md` (`uv sync --group alexa` or `pip install .[alexa]`). **Voice vs chat agent, NLU limits, plan forward:** `_docs/alexa-voice-agent-plan.md`.
 
 ## Maintenance
 
