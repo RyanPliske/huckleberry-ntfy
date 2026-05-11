@@ -49,6 +49,10 @@ flowchart LR
 | Session, reprompt, SSML | Amazon + our response | Keeps multi-turn **inside** the skill. |
 | Business logic + LLM + Huckleberry | **This repo** (Lambda + `agent_runner`) | Same tools as `examples/huckleberry_agent_cli.py`. |
 
+## Session open ≠ bypassing NLU
+
+After **“open huckle berry”**, you are in a **session** with that skill (context, reprompts, optional session attributes). **Each utterance is still classified** by the **same interaction model** (ASR → NLU → intent/slots → Lambda). Alexa does **not** stream raw transcript to your backend by default, so the model still only sees what NLU puts in slots (or fixed prompts like Help).
+
 ## NLU vs LLM (why it is not a chat window)
 
 - **Text chat agent:** each message is roughly **full string → model**.

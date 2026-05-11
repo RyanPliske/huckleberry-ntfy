@@ -31,6 +31,16 @@
             "what was {query}",
             "what is {query}",
             "what's {query}",
+            "when was {query}",
+            "when is {query}",
+            "when did {query}",
+            "what time was {query}",
+            "what time is {query}",
+            "how long ago {query}",
+            "show me {query}",
+            "did we {query}",
+            "have we {query}",
+            "was there {query}",
             "i need {query}",
             "i want to {query}",
             "we need to {query}",
@@ -75,7 +85,10 @@
             "list your tools",
             "what tools do you have",
             "what can this skill do",
-            "what are you able to do"
+            "what are you able to do",
+            "what all it can do",
+            "what can it do",
+            "tell me everything you can do"
           ]
         },
         {

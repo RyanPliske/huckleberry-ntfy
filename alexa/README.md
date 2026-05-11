@@ -59,9 +59,19 @@ Use Alexa’s **ask … to …** pattern so the skill and intent run in **one** 
 
 Saying only *“huckle berry, log two ounces…”* without **Alexa** / **ask** / **to** often goes to **general Alexa**, not your skill.
 
+**Critical:** the usual pattern is **ask *skill name* to *something*** — the word **“to”** after the invocation matters. If you say **“Alexa, ask huckle berry what all it can do”** (no **“to”**), Alexa often treats that as **talking to the main assistant**, not your skill — you may hear a generic line like **“I’m not sure how to help you with that”** (that string is **not** from this repo’s Lambda).
+
+Use one of these instead:
+
+- **Alexa, ask huckle berry to tell me what you can do.**
+- **Alexa, ask huckle berry to help.** (fires Help → agent)
+- **Alexa, open huckle berry** → then **what all can you do** (in-session)
+
 ### After you already said “open …”
 
 You are **inside** the skill — do **not** repeat the invocation name. Say the carrier + detail only, e.g. **“log 2 oz of formula”** or **“please log a wet diaper.”** Repeating *“huckle berry …”* again in turn two is unnecessary and can confuse routing.
+
+**“When was the last feeding?”** often **failed NLU** before we added **time-style carriers** (`when was {query}`, etc.) in `interaction_model_en_US.json`. **Rebuild** the model in the developer console after syncing JSON. Then in-session **“when was the last feeding”** can work (slot ≈ “the last feeding”). From cold start, use **to** plus a matching phrase, e.g. **Alexa, ask huckle berry to tell me when the last feeding was** or **Alexa, ask huckle berry to what was the last feeding**.
 
 ## Build and deploy Lambda
 
